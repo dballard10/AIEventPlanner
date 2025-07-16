@@ -34,5 +34,8 @@ yarn-error.*
 .env
 .env*.local
 
+# API keys and sensitive config
+src/config/googlePlaces.ts
+
 # typescript
 *.tsbuildinfo

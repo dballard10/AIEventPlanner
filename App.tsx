@@ -1,20 +1,24 @@
+import React, { useState } from "react";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
+import { ThemeProvider } from "./src/contexts/ThemeContext";
+import { SplashScreen } from "./src/components/SplashScreen";
+import { AppNavigator } from "./src/navigation/AppNavigator";
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Deez Fucking Nuts</Text>
+    <ThemeProvider>
+      {showSplash ? (
+        <SplashScreen onFinish={handleSplashFinish} />
+      ) : (
+        <AppNavigator />
+      )}
       <StatusBar style="auto" />
-    </View>
+    </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
