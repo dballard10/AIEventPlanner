@@ -7,22 +7,21 @@ import {
   StyleSheet,
 } from "react-native";
 import { useTheme } from "../contexts/ThemeContext";
-import { Activity } from "../types/Event";
+import { Question } from "../types/Event";
 import { CustomNotification } from "./CustomNotification";
 
-interface ActivityManagerProps {
-  activities: Activity[];
-  onActivitiesChange: (activities: Activity[]) => void;
+interface QuestionManagerProps {
+  questions: Question[];
+  onQuestionsChange: (questions: Question[]) => void;
 }
 
-export const ActivityManager: React.FC<ActivityManagerProps> = ({
-  activities,
-  onActivitiesChange,
+export const QuestionManager: React.FC<QuestionManagerProps> = ({
+  questions,
+  onQuestionsChange,
 }) => {
   const { theme } = useTheme();
-  const [newActivityName, setNewActivityName] = useState("");
-  const [newActivityDescription, setNewActivityDescription] = useState("");
-  const [showNewActivityForm, setShowNewActivityForm] = useState(false);
+  const [newQuestion, setNewQuestion] = useState("");
+  const [showNewQuestionForm, setShowNewQuestionForm] = useState(false);
   const [notification, setNotification] = useState<{
     visible: boolean;
     message: string;
@@ -33,71 +32,63 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
     type: "success",
   });
 
-  // Ensure activities is always an array
-  const safeActivities = Array.isArray(activities) ? activities : [];
+  // Ensure questions is always an array
+  const safeQuestions = Array.isArray(questions) ? questions : [];
 
-  const addActivity = () => {
-    if (!newActivityName.trim()) {
+  const addQuestion = () => {
+    if (!newQuestion.trim()) {
       setNotification({
         visible: true,
-        message: "Please enter an activity name.",
+        message: "Please enter a question.",
         type: "error",
       });
       return;
     }
 
-    const newActivity: Activity = {
+    const newQuestionObj: Question = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      name: newActivityName.trim(),
-      description: newActivityDescription.trim() || undefined,
+      question: newQuestion.trim(),
     };
 
-    onActivitiesChange([...safeActivities, newActivity]);
-    setNewActivityName("");
-    setNewActivityDescription("");
-    setShowNewActivityForm(false);
+    onQuestionsChange([...safeQuestions, newQuestionObj]);
+    setNewQuestion("");
+    setShowNewQuestionForm(false);
   };
 
-  const removeActivity = (activityId: string) => {
-    const updatedActivities = safeActivities.filter(
-      (activity) => activity.id !== activityId
+  const removeQuestion = (questionId: string) => {
+    const updatedQuestions = safeQuestions.filter(
+      (question) => question.id !== questionId
     );
-    onActivitiesChange(updatedActivities);
+    onQuestionsChange(updatedQuestions);
   };
 
-  const updateActivity = (
-    activityId: string,
-    field: "name" | "description",
-    value: string
-  ) => {
-    onActivitiesChange(
-      safeActivities.map((activity) =>
-        activity.id === activityId
-          ? { ...activity, [field]: value || undefined }
-          : activity
+  const updateQuestion = (questionId: string, value: string) => {
+    onQuestionsChange(
+      safeQuestions.map((question) =>
+        question.id === questionId ? { ...question, question: value } : question
       )
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Existing Activities */}
-      {safeActivities.map((activity, index) => (
+      {/* Existing Questions */}
+      {safeQuestions.map((question, index) => (
         <View
-          key={activity.id}
+          key={question.id}
           style={[
-            styles.activityCard,
+            styles.questionCard,
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <View style={styles.activityHeader}>
+          <View style={styles.questionHeader}>
             <Text
-              style={[styles.activityNumber, { color: theme.textSecondary }]}
+              style={[styles.questionNumber, { color: theme.textSecondary }]}
             >
-              Activity {index + 1}
+              Question {index + 1}
             </Text>
             <TouchableOpacity
-              onPress={() => removeActivity(activity.id)}
+              onPress={() => removeQuestion(question.id)}
               style={styles.removeButton}
             >
               <Text style={[styles.removeButtonText, { color: theme.primary }]}>
@@ -108,34 +99,16 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
 
           <TextInput
             style={[
-              styles.activityInput,
+              styles.questionInput,
               {
                 backgroundColor: theme.background,
                 borderColor: theme.border,
                 color: theme.text,
               },
             ]}
-            value={activity.name}
-            onChangeText={(value) => updateActivity(activity.id, "name", value)}
-            placeholder="Activity name..."
-            placeholderTextColor={theme.textSecondary}
-          />
-
-          <TextInput
-            style={[
-              styles.activityInput,
-              styles.activityDescription,
-              {
-                backgroundColor: theme.background,
-                borderColor: theme.border,
-                color: theme.text,
-              },
-            ]}
-            value={activity.description || ""}
-            onChangeText={(value) =>
-              updateActivity(activity.id, "description", value)
-            }
-            placeholder="Activity description (optional)..."
+            value={question.question}
+            onChangeText={(value) => updateQuestion(question.id, value)}
+            placeholder="Enter your question for AI..."
             placeholderTextColor={theme.textSecondary}
             multiline
             numberOfLines={3}
@@ -143,54 +116,38 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
         </View>
       ))}
 
-      {/* Add New Activity Button or Form */}
-      {!showNewActivityForm ? (
+      {/* Add New Question Button or Form */}
+      {!showNewQuestionForm ? (
         <TouchableOpacity
-          style={[styles.addActivityButton, { backgroundColor: theme.primary }]}
-          onPress={() => setShowNewActivityForm(true)}
+          style={[styles.addQuestionButton, { backgroundColor: theme.primary }]}
+          onPress={() => setShowNewQuestionForm(true)}
           activeOpacity={0.8}
         >
-          <Text style={styles.addActivityButtonText}>Create New Activity</Text>
+          <Text style={styles.addQuestionButtonText}>Create New Question</Text>
         </TouchableOpacity>
       ) : (
         <View
           style={[
-            styles.addActivityCard,
+            styles.addQuestionCard,
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.addActivityTitle, { color: theme.text }]}>
-            Add New Activity
+          <Text style={[styles.addQuestionTitle, { color: theme.text }]}>
+            Add New Question
           </Text>
 
           <TextInput
             style={[
-              styles.activityInput,
+              styles.questionInput,
               {
                 backgroundColor: theme.background,
                 borderColor: theme.border,
                 color: theme.text,
               },
             ]}
-            value={newActivityName}
-            onChangeText={setNewActivityName}
-            placeholder="Activity name..."
-            placeholderTextColor={theme.textSecondary}
-          />
-
-          <TextInput
-            style={[
-              styles.activityInput,
-              styles.activityDescription,
-              {
-                backgroundColor: theme.background,
-                borderColor: theme.border,
-                color: theme.text,
-              },
-            ]}
-            value={newActivityDescription}
-            onChangeText={setNewActivityDescription}
-            placeholder="Activity description (optional)..."
+            value={newQuestion}
+            onChangeText={setNewQuestion}
+            placeholder="Ask specific questions like 'What difficulty should I set for beginners?' or 'What food should I serve?'"
             placeholderTextColor={theme.textSecondary}
             multiline
             numberOfLines={3}
@@ -206,9 +163,8 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
                 },
               ]}
               onPress={() => {
-                setShowNewActivityForm(false);
-                setNewActivityName("");
-                setNewActivityDescription("");
+                setShowNewQuestionForm(false);
+                setNewQuestion("");
               }}
               activeOpacity={0.8}
             >
@@ -218,13 +174,20 @@ export const ActivityManager: React.FC<ActivityManagerProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.addButton, { backgroundColor: theme.primary }]}
-              onPress={addActivity}
+              onPress={addQuestion}
               activeOpacity={0.8}
             >
-              <Text style={styles.addButtonText}>Add Activity</Text>
+              <Text style={styles.addButtonText}>Add Question</Text>
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {safeQuestions.length === 0 && !showNewQuestionForm && (
+        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+          No questions added yet. Create your first question to get personalized
+          AI advice!
+        </Text>
       )}
 
       <CustomNotification
@@ -241,19 +204,19 @@ const styles = StyleSheet.create({
   container: {
     gap: 12,
   },
-  activityCard: {
+  questionCard: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
   },
-  activityHeader: {
+  questionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
   },
-  activityNumber: {
+  questionNumber: {
     fontSize: 14,
     fontWeight: "600",
   },
@@ -267,36 +230,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
-  activityInput: {
+  questionInput: {
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
-    marginBottom: 8,
     fontSize: 14,
-  },
-  activityDescription: {
     textAlignVertical: "top",
     minHeight: 80,
   },
-  addActivityButton: {
+  addQuestionButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8,
   },
-  addActivityButtonText: {
+  addQuestionButtonText: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
   },
-  addActivityCard: {
+  addQuestionCard: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
   },
-  addActivityTitle: {
+  addQuestionTitle: {
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 12,
@@ -330,5 +290,12 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    fontStyle: "italic",
+    marginTop: 8,
+    paddingHorizontal: 16,
   },
 });

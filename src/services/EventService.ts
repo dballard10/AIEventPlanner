@@ -126,6 +126,7 @@ export class EventService {
         endTime: event.endTime,
         isRecurring: event.isRecurring,
         recurringFrequency: event.recurringFrequency,
+        aiQuestions: event.aiQuestions, // Fixed: Include aiQuestions when regenerating
       };
 
       const aiPlan = await OpenAIService.generateEventPlanString(eventData);

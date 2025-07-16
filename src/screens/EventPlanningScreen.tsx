@@ -13,12 +13,21 @@ import {
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Calendar, DateData } from "react-native-calendars";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { CreateEventData, Activity, Event } from "../types/Event";
+import {
+  CreateEventData,
+  Activity,
+  Question,
+  SerializableEvent,
+} from "../types/Event";
 import { EventService } from "../services/EventService";
 import { OpenAIService } from "../services/OpenAIService";
 import { ActivityManager } from "../components/ActivityManager";
+import { QuestionManager } from "../components/QuestionManager";
+import { EventPlanModal } from "../components/EventPlanModal";
+import { CustomNotification } from "../components/CustomNotification";
 import { RouteProp } from "@react-navigation/native";
 
 type EventPlanningScreenNavigationProp = StackNavigationProp<
@@ -30,6 +39,15 @@ type EventPlanningScreenRouteProp = RouteProp<
   RootStackParamList,
   "EventPlanning"
 >;
+
+interface FormField {
+  key: string;
+  label: string;
+  required: boolean;
+  multiline: boolean;
+  keyboardType?: "numeric" | "default";
+  placeholder?: string;
+}
 
 interface EventPlanningScreenProps {
   navigation: EventPlanningScreenNavigationProp;
@@ -43,11 +61,37 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
   const { theme } = useTheme();
   const editEvent = route.params?.editEvent;
 
+  // Helper function to migrate old string questions to new array format
+  const migrateQuestionsData = (editEvent?: SerializableEvent): Question[] => {
+    if (!editEvent?.aiQuestions) return [];
+
+    // If it's already an array, return it
+    if (Array.isArray(editEvent.aiQuestions)) {
+      return editEvent.aiQuestions;
+    }
+
+    // If it's a string, convert it to a single question
+    if (
+      typeof editEvent.aiQuestions === "string" &&
+      (editEvent.aiQuestions as string).trim()
+    ) {
+      return [
+        {
+          id: Date.now().toString(),
+          question: (editEvent.aiQuestions as string).trim(),
+        },
+      ];
+    }
+
+    return [];
+  };
+
   // Ensure arrays are always defined
   const safeActivities = editEvent?.activities ? [...editEvent.activities] : [];
   const safeSelectedDates = editEvent?.selectedDates
     ? [...editEvent.selectedDates]
     : [];
+  const safeQuestions = migrateQuestionsData(editEvent);
 
   const [eventData, setEventData] = useState<CreateEventData>({
     name: editEvent?.name || "",
@@ -61,6 +105,7 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
     endTime: editEvent?.endTime || undefined,
     isRecurring: editEvent?.isRecurring || false,
     recurringFrequency: editEvent?.recurringFrequency || undefined,
+    aiQuestions: safeQuestions,
   });
 
   // UI state for time pickers and calendar
@@ -77,6 +122,15 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
   const [createdEventName, setCreatedEventName] = useState<string>("");
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugQuery, setDebugQuery] = useState<string>("");
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error";
+  }>({
+    visible: false,
+    message: "",
+    type: "success",
+  });
 
   const recurringOptions = [
     { label: "Daily", value: "daily" },
@@ -104,7 +158,7 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
     }
   }, [editEvent, theme.primary]);
 
-  const formFields = [
+  const formFields: FormField[] = [
     { key: "name", label: "Event Name", required: true, multiline: false },
     {
       key: "description",
@@ -138,6 +192,13 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
     setEventData((prev) => ({
       ...prev,
       activities: Array.isArray(activities) ? activities : [],
+    }));
+  };
+
+  const handleQuestionsChange = (questions: Question[]) => {
+    setEventData((prev) => ({
+      ...prev,
+      aiQuestions: Array.isArray(questions) ? questions : [],
     }));
   };
 
@@ -248,10 +309,11 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
   const handleSubmit = async () => {
     // Validate required fields
     if (!eventData.name.trim() || !eventData.description.trim()) {
-      Alert.alert(
-        "Missing Information",
-        "Please fill in both Event Name and Description."
-      );
+      setNotification({
+        visible: true,
+        message: "Please fill in both Event Name and Description.",
+        type: "error",
+      });
       return;
     }
 
@@ -261,11 +323,13 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
       if (editEvent) {
         // Update existing event
         await EventService.updateEvent(editEvent.id, eventData);
-        Alert.alert(
-          "Event Updated!",
-          "Your event has been updated successfully.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        setNotification({
+          visible: true,
+          message: "Event updated successfully!",
+          type: "success",
+        });
+        // Navigate back after a short delay to show the notification
+        setTimeout(() => navigation.goBack(), 1500);
       } else {
         // Create new event with AI plan
         const savedEvent = await EventService.saveEvent(eventData, true);
@@ -276,15 +340,22 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
           // Show the AI plan in a modal
           setShowAIPlanModal(true);
         } else {
-          Alert.alert(
-            "Event Saved!",
-            "Your event has been saved, but AI plan generation failed. You can try generating it again later.",
-            [{ text: "OK", onPress: () => navigation.goBack() }]
-          );
+          setNotification({
+            visible: true,
+            message:
+              "Event saved! AI plan generation failed - you can try generating it again later.",
+            type: "error",
+          });
+          // Navigate back after a short delay to show the notification
+          setTimeout(() => navigation.goBack(), 2000);
         }
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to save event. Please try again.");
+      setNotification({
+        visible: true,
+        message: "Failed to save event. Please try again.",
+        type: "error",
+      });
     } finally {
       setIsGeneratingAI(false);
     }
@@ -292,10 +363,11 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
 
   const handleRegenerateAI = async () => {
     if (!eventData.name.trim() || !eventData.description.trim()) {
-      Alert.alert(
-        "Missing Information",
-        "Please fill in both Event Name and Description."
-      );
+      setNotification({
+        visible: true,
+        message: "Please fill in both Event Name and Description.",
+        type: "error",
+      });
       return;
     }
 
@@ -305,9 +377,17 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
     try {
       const aiPlan = await OpenAIService.generateEventPlanString(eventData);
       setAiPlanGenerated(aiPlan);
-      Alert.alert("Success!", "AI plan has been regenerated successfully!");
+      setNotification({
+        visible: true,
+        message: "AI plan regenerated successfully!",
+        type: "success",
+      });
     } catch (error) {
-      Alert.alert("Error", "Failed to generate AI plan. Please try again.");
+      setNotification({
+        visible: true,
+        message: "Failed to generate AI plan. Please try again.",
+        type: "error",
+      });
     } finally {
       setIsGeneratingAI(false);
     }
@@ -364,7 +444,9 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
               onChangeText={(value) =>
                 handleInputChange(field.key as keyof CreateEventData, value)
               }
-              placeholder={`Enter ${field.label.toLowerCase()}...`}
+              placeholder={
+                field.placeholder || `Enter ${field.label.toLowerCase()}...`
+              }
               placeholderTextColor={theme.textSecondary}
               multiline={field.multiline}
               numberOfLines={field.multiline ? 4 : 1}
@@ -531,6 +613,19 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
           />
         </View>
 
+        {/* Questions Section */}
+        <View style={styles.fieldContainer}>
+          <Text style={[styles.fieldLabel, { color: theme.text }]}>
+            Questions for AI Assistant
+          </Text>
+          <QuestionManager
+            questions={
+              Array.isArray(eventData.aiQuestions) ? eventData.aiQuestions : []
+            }
+            onQuestionsChange={handleQuestionsChange}
+          />
+        </View>
+
         {/* AI Plan Display */}
         {(aiPlanGenerated || isGeneratingAI) && (
           <View style={styles.fieldContainer}>
@@ -547,7 +642,7 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
                 <Text
                   style={[styles.aiPlanLoading, { color: theme.textSecondary }]}
                 >
-                  🤖 Generating your perfect event plan...
+                  Generating your perfect event plan...
                 </Text>
               </View>
             ) : aiPlanGenerated ? (
@@ -730,7 +825,13 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
                 onChange={(event, selectedTime) =>
                   handleTimeChange(event, selectedTime, true)
                 }
-                style={{ width: "100%" }}
+                style={{
+                  width: "100%",
+                  backgroundColor: theme.surface,
+                }}
+                textColor={theme.text}
+                accentColor={theme.primary}
+                themeVariant={theme.isDark ? "dark" : "light"}
               />
               <View style={styles.timePickerButtons}>
                 <TouchableOpacity
@@ -788,7 +889,13 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
                 onChange={(event, selectedTime) =>
                   handleTimeChange(event, selectedTime, false)
                 }
-                style={{ width: "100%" }}
+                style={{
+                  width: "100%",
+                  backgroundColor: theme.surface,
+                }}
+                textColor={theme.text}
+                accentColor={theme.primary}
+                themeVariant={theme.isDark ? "dark" : "light"}
               />
               <View style={styles.timePickerButtons}>
                 <TouchableOpacity
@@ -819,101 +926,17 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
         </Modal>
 
         {/* AI Plan Success Modal */}
-        <Modal
+        <EventPlanModal
           visible={showAIPlanModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={handleCloseAIPlanModal}
-        >
-          <View style={styles.modalContainer}>
-            <View
-              style={[
-                styles.aiPlanModalContent,
-                { backgroundColor: theme.surface },
-              ]}
-            >
-              <View style={styles.aiPlanModalHeader}>
-                <Text style={[styles.aiPlanModalTitle, { color: theme.text }]}>
-                  🎉 Event Created Successfully!
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.aiModalCloseButton,
-                    { backgroundColor: theme.background },
-                  ]}
-                  onPress={handleCloseAIPlanModal}
-                >
-                  <Text
-                    style={[
-                      styles.aiModalCloseButtonText,
-                      { color: theme.text },
-                    ]}
-                  >
-                    ✕
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text
-                style={[styles.aiPlanModalEventName, { color: theme.primary }]}
-              >
-                {createdEventName}
-              </Text>
-
-              <Text
-                style={[
-                  styles.aiPlanModalSubtitle,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                🤖 Here's your AI-generated event plan:
-              </Text>
-
-              <ScrollView style={styles.aiPlanModalScroll}>
-                <Text style={[styles.aiPlanModalText, { color: theme.text }]}>
-                  {aiPlanGenerated}
-                </Text>
-              </ScrollView>
-
-              <View style={styles.aiPlanModalButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.aiPlanModalButton,
-                    styles.viewHistoryButton,
-                    {
-                      backgroundColor: theme.background,
-                      borderColor: theme.primary,
-                    },
-                  ]}
-                  onPress={() => {
-                    setShowAIPlanModal(false);
-                    navigation.navigate("MainTabs");
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.viewHistoryButtonText,
-                      { color: theme.primary },
-                    ]}
-                  >
-                    View in History
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.aiPlanModalButton,
-                    styles.doneButton,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={handleCloseAIPlanModal}
-                >
-                  <Text style={styles.doneButtonText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          onClose={handleCloseAIPlanModal}
+          eventName={createdEventName}
+          plan={aiPlanGenerated}
+          mode="success"
+          onViewHistory={() => {
+            setShowAIPlanModal(false);
+            navigation.navigate("MainTabs");
+          }}
+        />
 
         {/* Debug Query Modal */}
         <Modal
@@ -931,7 +954,7 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
             >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>
-                  🤖 OpenAI Query
+                  OpenAI Query
                 </Text>
                 <TouchableOpacity
                   style={[
@@ -940,9 +963,7 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
                   ]}
                   onPress={() => setShowDebugModal(false)}
                 >
-                  <Text style={[styles.closeButtonText, { color: theme.text }]}>
-                    ✕
-                  </Text>
+                  <MaterialIcons name="close" size={18} color={theme.text} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ flex: 1 }}>
@@ -965,6 +986,12 @@ export const EventPlanningScreen: React.FC<EventPlanningScreenProps> = ({
           </View>
         </Modal>
       </View>
+      <CustomNotification
+        visible={notification.visible}
+        message={notification.message}
+        type={notification.type}
+        onHide={() => setNotification({ ...notification, visible: false })}
+      />
     </ScrollView>
   );
 };
@@ -1182,84 +1209,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  aiPlanModalContent: {
-    margin: 20,
-    borderRadius: 12,
-    padding: 20,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    width: "95%",
-    maxHeight: "85%",
-  },
-  aiPlanModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  aiPlanModalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    flex: 1,
-  },
-  aiModalCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  aiModalCloseButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  aiPlanModalEventName: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  aiPlanModalSubtitle: {
-    fontSize: 16,
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  aiPlanModalScroll: {
-    flex: 1,
-    marginBottom: 20,
-  },
-  aiPlanModalText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  aiPlanModalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  aiPlanModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  viewHistoryButton: {
-    borderWidth: 1,
-  },
-  viewHistoryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  doneButton: {},
-  doneButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1272,10 +1221,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
   },
   debugQueryText: {
     fontSize: 12,

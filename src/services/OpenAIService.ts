@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { OPENAI_API_KEY } from "@env";
-import { CreateEventData, Event, EventPlanResponse } from "../types/Event";
+import {
+  CreateEventData,
+  Event,
+  EventPlanResponse,
+  Question,
+} from "../types/Event";
 
 export class OpenAIService {
   private static openai: OpenAI | null = null;
@@ -44,8 +49,8 @@ export class OpenAIService {
 
       // Log the query if debug mode is enabled
       if (this.debugMode) {
-        console.log("🤖 OpenAI Query (Event Input):", eventInput);
-        console.log("🤖 Not Specified Fields:", notSpecifiedFields);
+        console.log("OpenAI Query (Event Input):", eventInput);
+        console.log("Not Specified Fields:", notSpecifiedFields);
       }
 
       const response = await openai.chat.completions.create({
@@ -61,6 +66,7 @@ export class OpenAIService {
               "You produce highly structured, practical, and engaging plans.",
               "Always respect any user‑provided details and only build on them—never overwrite.",
               'If a field is missing or marked "Not specified," offer a thoughtful recommendation aligned with the event\'s theme.',
+              "If the user has provided specific questions in 'Questions for AI', address these questions throughout your plan and include specific answers in the recommendations section.",
             ].join("\n"),
           },
           {
@@ -76,7 +82,7 @@ export class OpenAIService {
               "{",
               '  "overview": "string",',
               '  "timeline": [',
-              '    {"time": "HH:MM", "activity": "string"}',
+              '    {"time": "H:MM AM/PM", "activity": "string"}',
               "  ],",
               '  "schedule": [',
               '    {"activity": "string", "details": "string", "location": "string"}',
@@ -87,6 +93,8 @@ export class OpenAIService {
               '  "tips": ["string"]',
               "}",
               "```",
+              "IMPORTANT: Use 12-hour time format with AM/PM for all times (e.g., '9:00 AM', '2:30 PM', '11:45 PM').",
+              "FORMAT: When converted to text, the Activity Schedule section should be formatted as a bulleted list instead of subheaders.",
               "Make the plan practical, engaging, and tailored to the provided details.",
             ].join("\n"),
           },
@@ -102,10 +110,10 @@ export class OpenAIService {
       // Parse the JSON response with robust error handling
       try {
         const eventPlan: EventPlanResponse = JSON.parse(generatedContent);
-        console.log("✅ Successfully parsed JSON directly");
+        console.log("Successfully parsed JSON directly");
         return eventPlan;
       } catch (parseError) {
-        console.log("🔧 Initial parse failed, attempting enhanced parsing...");
+        console.log("Initial parse failed, attempting enhanced parsing...");
         if (this.debugMode) {
           console.log(
             "Raw response content (full):",
@@ -187,14 +195,14 @@ export class OpenAIService {
 
         try {
           const eventPlan: EventPlanResponse = JSON.parse(cleanedContent);
-          console.log("✅ Successfully parsed JSON after enhanced cleanup");
+          console.log("Successfully parsed JSON after enhanced cleanup");
           return eventPlan;
         } catch (secondParseError) {
           const errorMessage =
             secondParseError instanceof Error
               ? secondParseError.message
               : String(secondParseError);
-          console.error("❌ Enhanced parsing failed:", errorMessage);
+          console.error("Enhanced parsing failed:", errorMessage);
           if (this.debugMode) {
             console.log(
               "Cleaned content that failed:",
@@ -253,6 +261,11 @@ export class OpenAIService {
               .join(", ")
           : "Not specified"
       }`,
+      `- **Questions for AI:** ${
+        eventData.aiQuestions && eventData.aiQuestions.length > 0
+          ? eventData.aiQuestions.map((q) => q.question).join("; ")
+          : "Not specified"
+      }`,
       `- **Not specified fields:** ${this.getNotSpecifiedFields(eventData)}`,
     ].join("\n");
   }
@@ -271,6 +284,8 @@ export class OpenAIService {
     if (!eventData.endTime) notSpecified.push("End Time");
     if (!eventData.activities || eventData.activities.length === 0)
       notSpecified.push("Activities");
+    if (!eventData.aiQuestions || eventData.aiQuestions.length === 0)
+      notSpecified.push("Questions for AI");
 
     return notSpecified.length > 0 ? notSpecified.join(", ") : "None";
   }
@@ -295,10 +310,9 @@ export class OpenAIService {
     if (structuredPlan.schedule.length > 0) {
       formattedPlan += `## Activity Schedule\n`;
       structuredPlan.schedule.forEach((item) => {
-        formattedPlan += `### ${item.activity}\n`;
-        formattedPlan += `**Details:** ${item.details}\n`;
-        formattedPlan += `**Location:** ${item.location}\n\n`;
+        formattedPlan += `- **${item.activity}** - ${item.details} (Location: ${item.location})\n`;
       });
+      formattedPlan += `\n`;
     }
 
     if (structuredPlan.logistics.length > 0) {

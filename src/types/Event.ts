@@ -4,6 +4,11 @@ export interface Activity {
   description?: string;
 }
 
+export interface Question {
+  id: string;
+  question: string;
+}
+
 export interface Event {
   id: string;
   name: string;
@@ -17,9 +22,17 @@ export interface Event {
   endTime?: string; // Optional end time in HH:MM format
   isRecurring?: boolean;
   recurringFrequency?: "daily" | "weekly" | "biweekly" | "monthly" | "yearly";
+  aiQuestions?: Question[]; // Array of questions to ask AI for personalized advice
   aiGeneratedPlan?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Serializable version of Event for navigation params (converts Date to string)
+export interface SerializableEvent
+  extends Omit<Event, "createdAt" | "updatedAt"> {
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateEventData {
@@ -34,6 +47,7 @@ export interface CreateEventData {
   endTime?: string; // Optional end time in HH:MM format
   isRecurring?: boolean;
   recurringFrequency?: "daily" | "weekly" | "biweekly" | "monthly" | "yearly";
+  aiQuestions?: Question[]; // Array of questions to ask AI for personalized advice
 }
 
 // New structured response interface for the refactored OpenAI API

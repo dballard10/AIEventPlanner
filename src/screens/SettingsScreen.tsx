@@ -1,12 +1,15 @@
 import React from "react";
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from "react-native";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { CompositeNavigationProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
-import { RootStackParamList } from "../navigation/AppNavigator";
+import { RootStackParamList, TabParamList } from "../navigation/AppNavigator";
 
-type SettingsScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "Settings"
+type SettingsScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<TabParamList, "Settings">,
+  StackNavigationProp<RootStackParamList>
 >;
 
 interface SettingsScreenProps {
@@ -20,18 +23,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.surface }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={[styles.backButtonText, { color: theme.text }]}>
-            ← Back
-          </Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-      </View>
-
       <View style={styles.content}>
         <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
           <View style={styles.settingInfo}>
@@ -55,6 +46,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           />
         </View>
 
+        <TouchableOpacity
+          style={[styles.settingItem, { borderBottomColor: theme.border }]}
+          onPress={() => navigation.navigate("Help")}
+          activeOpacity={0.7}
+        >
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingTitle, { color: theme.text }]}>
+              Help & About
+            </Text>
+            <Text
+              style={[
+                styles.settingDescription,
+                { color: theme.textSecondary },
+              ]}
+            >
+              Learn about features and how to use the app
+            </Text>
+          </View>
+          <MaterialIcons
+            name="chevron-right"
+            size={24}
+            color={theme.textSecondary}
+          />
+        </TouchableOpacity>
+
         <Text style={[styles.version, { color: theme.textSecondary }]}>
           AI Event Planner v1.0.0
         </Text>
@@ -67,35 +83,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    padding: 20,
   },
   settingItem: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
@@ -103,13 +98,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 14,
-    lineHeight: 20,
+  },
+  helpOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  helpIcon: {
+    marginRight: 16,
+  },
+  helpContent: {
+    flex: 1,
+  },
+  helpTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  helpDescription: {
+    fontSize: 14,
   },
   version: {
     textAlign: "center",
